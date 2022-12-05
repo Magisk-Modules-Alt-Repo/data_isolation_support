@@ -49,7 +49,7 @@ EnterMntNs(){
 
     # script run after enter the mount name space of app process and you allow this script to run in EnterMntNs stage
     USERID="$(($UID/100000))"
-    PKGS="$(pm list package -U | grep "uid:$UID" | awk '{ print $1 }' | sed "s/^package://g")"
+    APP_ID="$(($UID%100000))"
 
     mount -t tmpfs tmpfs /data/data
     mount -t tmpfs tmpfs /data/user
@@ -58,10 +58,8 @@ EnterMntNs(){
     mount -t tmpfs tmpfs /data/misc/profiles/cur
     mount -t tmpfs tmpfs /data/misc/profiles/ref
 
-
-    mkdir -p "/data/data/com.google.android.gms"
-    mkdir -p "/data/user/$USERID/com.google.android.gms"
-    mkdir -p "/data/user_de/$USERID/com.google.android.gms"
+    mkdir -p "/data/user/$USERID"
+    mkdir -p "/data/user_de/$USERID"
 
     mount -t tmpfs tmpfs /mnt
     mkdir -p /mnt/data
@@ -71,6 +69,16 @@ EnterMntNs(){
         magisk_cl "$dir"
     done
 
+    if [ "$APP_ID" -ge 90000 ] && [ "$APP_ID" -le 99999 ]; then
+        umount -l /mnt
+        exit 0
+	fi
+
+    mkdir -p "/data/data/com.google.android.gms"
+    mkdir -p "/data/user/$USERID/com.google.android.gms"
+    mkdir -p "/data/user_de/$USERID/com.google.android.gms"
+
+    PKGS="$(grep "^.* $APP_ID " /data/system/packages.list | awk '{ print $1 }')"
 
     for PKG in $PKGS; do
 
