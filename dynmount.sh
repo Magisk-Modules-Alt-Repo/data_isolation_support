@@ -10,6 +10,9 @@ USERID="$5" # USER ID of app
 # Enable ash standalone
 # Enviroment variables: MAGISKTMP, API_VERSION
 
+
+APP_ID="$(($UID%100000))"
+
 RUN_SCRIPT(){
     if [ "$STAGE" == "prepareEnterMntNs" ]; then
         prepareEnterMntNs
@@ -26,15 +29,19 @@ prepareEnterMntNs(){
         exit 1
     fi
 
+
+    # Android 11 already has data isolation
     if [ "$(getprop ro.build.version.sdk)" -ge 30 ]; then
-       # Android 11 already has data isolation
        exit 1
+    fi
+
+    # Ignore system apps with UID < 10000
+    if [ "$APP_ID" -lt 10000 ]; then
+        exit 1
     fi
 
     exit 0
 
-    #exit 0 # allow script to run in EnterMntNs stage
-    exit 1 # close script and don't allow script to run in EnterMntNs stage
 }
 
 res_mount(){
@@ -48,9 +55,12 @@ magisk_cl(){
 EnterMntNs(){
 
     # script run after enter the mount name space of app process and you allow this script to run in EnterMntNs stage
-    USERID="$(($UID/100000))"
-    APP_ID="$(($UID%100000))"
 
+    # USERID given by am_proc_start is unrealiable, so we parse USERID from UID
+    USERID="$(($UID/100000))"
+
+   
+    # mount tmpfs layer
     mount -t tmpfs tmpfs /data/data
     mount -t tmpfs tmpfs /data/user
     mount -t tmpfs tmpfs /data/user_de
@@ -72,20 +82,13 @@ EnterMntNs(){
     if [ "$APP_ID" -ge 90000 ] && [ "$APP_ID" -le 99999 ]; then
         umount -l /mnt
         exit 0
-	fi
+    fi
 
-    mkdir -p "/data/data/com.google.android.gms"
-    mkdir -p "/data/user/$USERID/com.google.android.gms"
-    mkdir -p "/data/user_de/$USERID/com.google.android.gms"
-
-    PKGS="$(grep "^.* $APP_ID " /data/system/packages.list | awk '{ print $1 }')"
+    PKGS="$(cat /data/system/packages.list | awk '{ if ($2 == '"$APP_ID"' || $2 <= 10000 || $1 == "com.google.android.gms") print $1 }')"
 
     for PKG in $PKGS; do
 
-    if [ "$PKG" == "com.google.android.gms" ]; then
-        continue
-    fi
-
+    # bind mount its own folder
 
     mkdir -p "/data/data/$PKG"
     mkdir -p "/data/user/$USERID/$PKG"
@@ -102,11 +105,6 @@ EnterMntNs(){
     res_mount "/data/misc/profiles/ref/$PKG"
 
     done
-    
-
-    res_mount "/data/data/com.google.android.gms"
-    res_mount "/data/user/$USERID/com.google.android.gms"
-    res_mount "/data/user_de/$USERID/com.google.android.gms"
 
     
     umount -l /mnt
