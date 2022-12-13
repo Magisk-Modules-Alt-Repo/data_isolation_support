@@ -59,6 +59,12 @@ EnterMntNs(){
     # USERID given by am_proc_start is unrealiable, so we parse USERID from UID
     USERID="$(($UID/100000))"
 
+    # ignore privapp
+    if cat /data/system/packages.list | awk '{ if ($2 == '"$APP_ID"') print $5 }' | grep -q "privapp"; then
+        exit 1
+    fi
+    PKGS="$(cat /data/system/packages.list | awk '{ if ($2 == '"$APP_ID"' || $1 == "com.google.android.gms") print $1 }')"
+
    
     # mount tmpfs layer
     mount -t tmpfs tmpfs /data/data
@@ -83,8 +89,6 @@ EnterMntNs(){
         umount -l /mnt
         exit 0
     fi
-
-    PKGS="$(cat /data/system/packages.list | awk '{ if ($2 == '"$APP_ID"' || $2 <= 10000 || $1 == "com.google.android.gms") print $1 }')"
 
     for PKG in $PKGS; do
 
